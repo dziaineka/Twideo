@@ -271,7 +271,15 @@ async fn callback_queries_handler(
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    pretty_env_logger::init();
+
+    pretty_env_logger::formatted_builder()
+        .write_style(pretty_env_logger::env_logger::WriteStyle::Auto)
+        .filter(
+            Some(&env!("CARGO_CRATE_NAME").replace('-', "_")),
+            log::LevelFilter::Trace,
+        )
+        .filter(Some("teloxide"), log::LevelFilter::Info)
+        .init();
 
     log::info!("Starting twideo");
 
@@ -284,7 +292,7 @@ async fn main() {
 
     Dispatcher::builder(bot, handler)
         .enable_ctrlc_handler()
-        .default_handler(|_| async {})
+        // .default_handler(|_| async {})
         .build()
         .dispatch()
         .await;
