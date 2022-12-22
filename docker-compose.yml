@@ -1,0 +1,10 @@
+services:
+  twideo_bot:
+    # image: skaborik/twideo_bot:1.0.0
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: twideo_bot
+    env_file:
+      - .env
+    restart: always

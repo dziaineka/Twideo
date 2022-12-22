@@ -1,0 +1,8 @@
+/target
+.env
+Procfile
+rust-toolchain
+*.json
+.idea
+send_to_all.py
+
