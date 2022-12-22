@@ -4,7 +4,7 @@ extern crate twitter_video_dl;
 mod helpers;
 
 use dotenv::dotenv;
-use helpers::{generate_code, get_twitter_data, twitt_id, TwitDetails, TwitterID, DATABASE_URL};
+use helpers::{generate_code, get_twitter_data, twitt_id, TwitDetails, TwitterID};
 use reqwest::Url;
 use std::error::Error;
 use teloxide::{
@@ -17,7 +17,7 @@ use teloxide::{
         ParseMode,
     },
 };
-use twitter_video_dl::{serde_schemes::Variant, DBManager};
+use twitter_video_dl::serde_schemes::Variant;
 
 struct MediaWithExtra {
     media: Vec<InputMedia>,
@@ -185,24 +185,12 @@ where
 }
 
 async fn message_handler(
-    m: Message,
+    message: Message,
     bot: AutoSend<Bot>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let chat = &m.chat;
-    let username = chat.username().map(String::from);
-    let dbm = DBManager::new(&DATABASE_URL).unwrap();
+    let chat = &message.chat;
 
-    _ = dbm.create_user(
-        chat.id,
-        format!(
-            "{} {}",
-            chat.first_name().unwrap_or(""),
-            chat.last_name().unwrap_or("")
-        ),
-        username,
-    );
-
-    if let Some(maybe_url) = m.text() {
+    if let Some(maybe_url) = message.text() {
         if maybe_url == "/start" {
             bot.send_message(chat.id, "👉  Send me a valid twitter url")
                 .await?;

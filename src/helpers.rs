@@ -12,7 +12,6 @@ lazy_static::lazy_static! {
     static ref TWITTER_MULTIMEDIA_URL: &'static str = "https://api.twitter.com/2/tweets";
     static ref TWITTER_EXPANSIONS_PARAMS: &'static str = "expansions=attachments.media_keys,author_id&media.fields=url,variants,preview_image_url&user.fields=name";
     static ref RE : regex::Regex= Regex::new("https://t.co/\\w+\\b").unwrap();
-    pub static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap();
 }
 
 pub fn twitt_id(link: &str) -> TwitterID {
