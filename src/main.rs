@@ -188,52 +188,47 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
     let chat = &message.chat;
 
     if let Some(maybe_url) = message.text() {
-        if maybe_url == "/start" {
-            bot.send_message(chat.id, "👉  Send me a valid twitter url")
-                .await?;
-        } else {
-            let response = convert_to_tl(maybe_url, message_response_cb).await;
+        let response = convert_to_tl(maybe_url, message_response_cb).await;
 
-            match response {
-                Response::Text(caption) => {
-                    bot.send_message(chat.id, caption)
-                        .parse_mode(ParseMode::Html)
-                        .disable_web_page_preview(true)
-                        .await?;
-                }
-                Response::Media(media_with_extra) => {
-                    let response = bot.send_media_group(chat.id, media_with_extra.media).await;
+        match response {
+            Response::Text(caption) => {
+                bot.send_message(chat.id, caption)
+                    .parse_mode(ParseMode::Html)
+                    .disable_web_page_preview(true)
+                    .await?;
+            }
+            Response::Media(media_with_extra) => {
+                let response = bot.send_media_group(chat.id, media_with_extra.media).await;
 
-                    if response.is_err() && media_with_extra.allowed {
-                        bot.send_message(
-                            chat.id,
-                            concat!(
-                                "Telegram is unable to download high quality video.\n",
-                                "I will send you other qualities."
-                            )
-                            .to_string(),
+                if response.is_err() && media_with_extra.allowed {
+                    bot.send_message(
+                        chat.id,
+                        concat!(
+                            "Telegram is unable to download high quality video.\n",
+                            "I will send you other qualities."
                         )
-                        .parse_mode(ParseMode::Html)
-                        .disable_web_page_preview(true)
-                        .await?;
+                        .to_string(),
+                    )
+                    .parse_mode(ParseMode::Html)
+                    .disable_web_page_preview(true)
+                    .await?;
 
-                        for variant in &media_with_extra.extra_urls {
-                            bot.send_media_group(
-                                chat.id,
-                                [InputMedia::Video(
-                                    InputMediaVideo::new(InputFile::url(
-                                        Url::parse(variant.url.as_str()).unwrap(),
-                                    ))
-                                    .caption(&media_with_extra.caption)
-                                    .parse_mode(ParseMode::Html),
-                                )],
-                            )
-                            .await?;
-                        }
+                    for variant in &media_with_extra.extra_urls {
+                        bot.send_media_group(
+                            chat.id,
+                            [InputMedia::Video(
+                                InputMediaVideo::new(InputFile::url(
+                                    Url::parse(variant.url.as_str()).unwrap(),
+                                ))
+                                .caption(&media_with_extra.caption)
+                                .parse_mode(ParseMode::Html),
+                            )],
+                        )
+                        .await?;
                     }
                 }
-                _ => (),
             }
+            _ => (),
         }
     }
 
@@ -292,7 +287,6 @@ async fn main() {
 
     Dispatcher::builder(bot, handler)
         .enable_ctrlc_handler()
-        // .default_handler(|_| async {})
         .build()
         .dispatch()
         .await;
