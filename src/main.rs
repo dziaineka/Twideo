@@ -9,7 +9,7 @@ use reqwest::Url;
 use std::error::Error;
 use teloxide::{
     payloads::SendMessageSetters,
-    prelude2::*,
+    prelude::*,
     types::{
         InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResult, InlineQueryResultArticle,
         InlineQueryResultGif, InlineQueryResultPhoto, InlineQueryResultVideo, InputFile,
@@ -184,10 +184,7 @@ where
     Response::None
 }
 
-async fn message_handler(
-    message: Message,
-    bot: AutoSend<Bot>,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error + Send + Sync>> {
     let chat = &message.chat;
 
     if let Some(maybe_url) = message.text() {
@@ -244,7 +241,7 @@ async fn message_handler(
 }
 
 async fn inline_queries_handler(
-    bot: AutoSend<Bot>,
+    bot: Bot,
     update: InlineQuery,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let response = convert_to_tl(&update.query, inline_query_response_cb).await;
@@ -258,7 +255,7 @@ async fn inline_queries_handler(
 
 async fn callback_queries_handler(
     q: CallbackQuery,
-    bot: AutoSend<Bot>,
+    bot: Bot,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let tid: u64 = q.data.unwrap().parse().unwrap();
     let response = convert_to_tl_by_id(tid, message_response_cb).await;
@@ -278,7 +275,7 @@ async fn main() {
 
     log::info!("Starting twideo");
 
-    let bot = Bot::from_env().auto_send();
+    let bot = Bot::from_env();
 
     let handler = dptree::entry()
         .branch(Update::filter_message().endpoint(message_handler))
@@ -286,9 +283,9 @@ async fn main() {
         .branch(Update::filter_callback_query().endpoint(callback_queries_handler));
 
     Dispatcher::builder(bot, handler)
+        .enable_ctrlc_handler()
         .default_handler(|_| async {})
         .build()
-        .setup_ctrlc_handler()
         .dispatch()
         .await;
 }
