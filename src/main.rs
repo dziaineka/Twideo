@@ -4,18 +4,13 @@ extern crate twitter_video_dl;
 mod helpers;
 
 use dotenvy::dotenv;
-use helpers::{generate_code, get_twitter_data, twitt_id, TwitDetails, TwitterID};
+use helpers::{get_twitter_data, twitt_id, TwitDetails, TwitterID};
 use reqwest::Url;
 use std::error::Error;
 use teloxide::{
     payloads::SendMessageSetters,
     prelude::*,
-    types::{
-        InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResult, InlineQueryResultArticle,
-        InlineQueryResultGif, InlineQueryResultPhoto, InlineQueryResultVideo, InputFile,
-        InputMedia, InputMediaPhoto, InputMediaVideo, InputMessageContent, InputMessageContentText,
-        ParseMode,
-    },
+    types::{InputFile, InputMedia, InputMediaPhoto, InputMediaVideo, ParseMode},
 };
 use twitter_video_dl::serde_schemes::Variant;
 
@@ -29,7 +24,6 @@ struct MediaWithExtra {
 enum Response {
     Media(MediaWithExtra),
     Text(String),
-    InlineResults(Vec<InlineQueryResult>),
     None,
 }
 
@@ -72,91 +66,6 @@ fn message_response_cb(twitter_data: &TwitDetails) -> Response {
         caption: twitter_data.caption.to_string(),
         allowed,
     })
-}
-
-fn inline_query_response_cb(twitter_data: &TwitDetails) -> Response {
-    let mut inline_result: Vec<InlineQueryResult> = Vec::new();
-
-    if twitter_data.twitter_media.is_empty() {
-        inline_result.push(InlineQueryResult::Article(
-            InlineQueryResultArticle::new(
-                generate_code(),
-                &twitter_data.name,
-                InputMessageContent::Text(
-                    InputMessageContentText::new(&twitter_data.caption)
-                        .parse_mode(ParseMode::Html)
-                        .disable_web_page_preview(true),
-                ),
-            )
-            .description(&twitter_data.caption),
-        ));
-    }
-
-    for media in &twitter_data.twitter_media {
-        match media.r#type.as_str() {
-            "photo" => {
-                let mut inline_photo = InlineQueryResultPhoto::new(
-                    generate_code(),
-                    Url::parse(&media.url).unwrap(),
-                    Url::parse(&media.thumb).unwrap(),
-                )
-                .title(&twitter_data.name)
-                .caption(&twitter_data.caption)
-                .parse_mode(ParseMode::Html);
-
-                if twitter_data.twitter_media.len() > 1 {
-                    let keyboard: Vec<Vec<InlineKeyboardButton>> =
-                        vec![vec![InlineKeyboardButton::callback(
-                            "See Album".to_string(),
-                            twitter_data.id.to_string(),
-                        )]];
-
-                    inline_photo = inline_photo.reply_markup(InlineKeyboardMarkup::new(keyboard));
-                }
-
-                inline_result.push(InlineQueryResult::Photo(inline_photo));
-            }
-            "video" => {
-                for variant in &twitter_data.extra_urls {
-                    inline_result.push(InlineQueryResult::Video(
-                        InlineQueryResultVideo::new(
-                            generate_code(),
-                            Url::parse(variant.url.as_str()).unwrap(),
-                            variant.content_type.parse().unwrap(),
-                            Url::parse(&media.thumb).unwrap(),
-                            format!(
-                                "{} (Bitrate {})",
-                                &twitter_data.name,
-                                variant.bit_rate.unwrap_or(0)
-                            ),
-                        )
-                        .caption(&twitter_data.caption)
-                        .parse_mode(ParseMode::Html),
-                    ));
-                }
-            }
-            "animated_gif" => {
-                for variant in &twitter_data.extra_urls {
-                    inline_result.push(InlineQueryResult::Gif(
-                        InlineQueryResultGif::new(
-                            generate_code(),
-                            Url::parse(variant.url.as_str()).unwrap(),
-                            Url::parse(&media.thumb).unwrap(),
-                        )
-                        .caption(&twitter_data.caption)
-                        .parse_mode(ParseMode::Html)
-                        .title(format!(
-                            "{} (Bitrate {})",
-                            twitter_data.name,
-                            variant.bit_rate.unwrap_or(0)
-                        )),
-                    ));
-                }
-            }
-            _ => {}
-        }
-    }
-    Response::InlineResults(inline_result)
 }
 
 async fn convert_to_tl<F>(url: &str, callback: F) -> Response
@@ -235,19 +144,6 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
     Ok(())
 }
 
-async fn inline_queries_handler(
-    bot: Bot,
-    update: InlineQuery,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let response = convert_to_tl(&update.query, inline_query_response_cb).await;
-    if let Response::InlineResults(inline_result) = response {
-        let req_builder = bot.answer_inline_query(update.id, inline_result);
-        req_builder.await?;
-    }
-
-    Ok(())
-}
-
 async fn callback_queries_handler(
     q: CallbackQuery,
     bot: Bot,
@@ -282,7 +178,6 @@ async fn main() {
 
     let handler = dptree::entry()
         .branch(Update::filter_message().endpoint(message_handler))
-        .branch(Update::filter_inline_query().endpoint(inline_queries_handler))
         .branch(Update::filter_callback_query().endpoint(callback_queries_handler));
 
     Dispatcher::builder(bot, handler)

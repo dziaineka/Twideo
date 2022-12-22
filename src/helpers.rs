@@ -1,6 +1,5 @@
 extern crate lazy_static;
 
-use rand::Rng;
 use regex::Regex;
 use std::env;
 use twitter_video_dl::serde_schemes::*;
@@ -47,11 +46,6 @@ pub struct TwitDetails {
 pub enum TwitterID {
     Id(u64),
     None,
-}
-
-pub fn generate_code() -> String {
-    let mut rng = rand::thread_rng();
-    rng.gen_range(10000000..99999999).to_string()
 }
 
 pub async fn get_twitter_data(tid: u64) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
