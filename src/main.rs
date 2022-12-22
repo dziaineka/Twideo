@@ -1,9 +1,9 @@
-extern crate dotenv;
+extern crate dotenvy;
 extern crate twitter_video_dl;
 
 mod helpers;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use helpers::{generate_code, get_twitter_data, twitt_id, TwitDetails, TwitterID};
 use reqwest::Url;
 use std::error::Error;
