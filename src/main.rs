@@ -102,12 +102,16 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
         match response {
             Response::Text(caption) => {
                 bot.send_message(chat.id, caption)
+                    .reply_to_message_id(message.id)
                     .parse_mode(ParseMode::Html)
                     .disable_web_page_preview(true)
                     .await?;
             }
             Response::Media(media_with_extra) => {
-                let response = bot.send_media_group(chat.id, media_with_extra.media).await;
+                let response = bot
+                    .send_media_group(chat.id, media_with_extra.media)
+                    .reply_to_message_id(message.id)
+                    .await;
 
                 if response.is_err() && media_with_extra.allowed {
                     bot.send_message(
@@ -118,6 +122,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
                         )
                         .to_string(),
                     )
+                    .reply_to_message_id(message.id)
                     .parse_mode(ParseMode::Html)
                     .disable_web_page_preview(true)
                     .await?;
@@ -133,6 +138,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
                                 .parse_mode(ParseMode::Html),
                             )],
                         )
+                        .reply_to_message_id(message.id)
                         .await?;
                     }
                 }
