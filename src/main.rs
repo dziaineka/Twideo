@@ -1,5 +1,5 @@
 extern crate dotenv;
-extern crate twitterVideodl;
+extern crate twitter_video_dl;
 
 mod helpers;
 
@@ -17,7 +17,7 @@ use teloxide::{
         ParseMode,
     },
 };
-use twitterVideodl::{serde_schemes::Variant, DBManager};
+use twitter_video_dl::{serde_schemes::Variant, DBManager};
 
 struct MediaWithExtra {
     media: Vec<InputMedia>,
@@ -287,7 +287,7 @@ async fn main() {
     dotenv().ok();
     teloxide::enable_logging!();
 
-    log::info!("Starting Twideo");
+    log::info!("Starting twideo");
 
     let bot = Bot::from_env().auto_send();
 

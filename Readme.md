@@ -1,4 +1,4 @@
-# Twideo: Simple Telegram Bot for downloading videos from Twitter
+# twideo: Simple Telegram Bot for downloading videos from Twitter
 
 ## Setting up your environment
  1. [Download Rust](http://rustup.rs/).

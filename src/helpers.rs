@@ -3,7 +3,7 @@ extern crate lazy_static;
 use rand::Rng;
 use regex::Regex;
 use std::{env, fmt::format};
-use twitterVideodl::serde_schemes::*;
+use twitter_video_dl::serde_schemes::*;
 
 lazy_static::lazy_static! {
     static ref TWITTER_STATUS_URL: &'static str = "https://api.twitter.com/1.1/statuses/show.json?extended_entities=true&tweet_mode=extended&id=";
