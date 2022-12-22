@@ -12,17 +12,21 @@ pub struct DBManager {
     connection: PgConnection,
 }
 
-type Result<T> = std::result::Result<T, ()>;
 type DieselResult<U> = std::result::Result<U, diesel::result::Error>;
 
 impl DBManager {
-    pub fn new(db_url: &str) -> Result<DBManager> {
+    pub fn new(db_url: &str) -> Result<DBManager, diesel::result::ConnectionError> {
         Ok(DBManager {
-            connection: PgConnection::establish(db_url).unwrap(),
+            connection: PgConnection::establish(db_url)?,
         })
     }
 
-    pub fn create_user(&self, id: i64, name_: String, username_: Option<String>) -> Result<()> {
+    pub fn create_user(
+        &self,
+        id: i64,
+        name_: String,
+        username_: Option<String>,
+    ) -> Result<(), diesel::result::Error> {
         use scheme::users;
         use scheme::users::dsl::*;
 
@@ -45,13 +49,16 @@ impl DBManager {
             .values(&user)
             .get_result(&self.connection);
 
-        if row.is_err() {
-            return Err(());
+        match row {
+            Ok(result) => {
+                log::info!("User Created Successfully => {:?}", result);
+                Ok(())
+            }
+            Err(error) => {
+                log::error!("User Creation Failed => {:?}", error);
+                Err(error)
+            }
         }
-
-        log::info!("User Created Successfully => {:?}", row.unwrap());
-
-        Ok(())
     }
 }
 

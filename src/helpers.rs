@@ -2,7 +2,7 @@ extern crate lazy_static;
 
 use rand::Rng;
 use regex::Regex;
-use std::{env, fmt::format};
+use std::env;
 use twitter_video_dl::serde_schemes::*;
 
 lazy_static::lazy_static! {
@@ -16,14 +16,14 @@ lazy_static::lazy_static! {
 }
 
 pub fn twitt_id(link: &str) -> TwitterID {
-    if link.starts_with("https://twitter.com/") || link.starts_with("https://mobile.twitter.com/") {
-        if !link.starts_with("https://twitter.com/i/spaces/") {
-            let parsed: Vec<&str> = (&link[20..]).split("/").collect();
-            let last_parts: Vec<&str> = parsed.last().unwrap().split("?").collect();
-            let possible_id = last_parts.first().unwrap().parse().unwrap_or(0);
-            if possible_id > 0 {
-                return TwitterID::id(possible_id);
-            }
+    if (link.starts_with("https://twitter.com/") || link.starts_with("https://mobile.twitter.com/"))
+        && !link.starts_with("https://twitter.com/i/spaces/")
+    {
+        let parsed: Vec<&str> = (link[20..]).split('/').collect();
+        let last_parts: Vec<&str> = parsed.last().unwrap().split('?').collect();
+        let possible_id = last_parts.first().unwrap().parse().unwrap_or(0);
+        if possible_id > 0 {
+            return TwitterID::Id(possible_id);
         }
     }
     TwitterID::None
@@ -37,7 +37,7 @@ pub struct TwitterMedia {
 }
 
 #[derive(Debug)]
-pub struct TWD {
+pub struct TwitDetails {
     pub caption: String,
     pub twitter_media: Vec<TwitterMedia>,
     pub name: String,
@@ -46,7 +46,7 @@ pub struct TWD {
 }
 
 pub enum TwitterID {
-    id(u64),
+    Id(u64),
     None,
 }
 
@@ -55,7 +55,7 @@ pub fn generate_code() -> String {
     rng.gen_range(10000000..99999999).to_string()
 }
 
-pub async fn get_twitter_data(tid: u64) -> Result<Option<TWD>, Box<dyn std::error::Error>> {
+pub async fn get_twitter_data(tid: u64) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
     log::info!("Send request to twitter");
     let client = reqwest::Client::new();
 
@@ -133,7 +133,7 @@ pub async fn get_twitter_data(tid: u64) -> Result<Option<TWD>, Box<dyn std::erro
         .map(|c| c.get(0).unwrap().as_str())
         .collect();
 
-    if captures.len() > 0 {
+    if !captures.is_empty() {
         let mut captured = captures[captures.len() - 1];
 
         // means tweet doesn's contain media, so the link is real link (not media link)
@@ -153,7 +153,7 @@ pub async fn get_twitter_data(tid: u64) -> Result<Option<TWD>, Box<dyn std::erro
         }
     }
 
-    Ok(Some(TWD {
+    Ok(Some(TwitDetails {
         caption: format!(
             "{} \n\n<a href='https://twitter.com/{}/status/{}'>&#x1F464 {}</a>",
             || -> &str {
@@ -167,8 +167,8 @@ pub async fn get_twitter_data(tid: u64) -> Result<Option<TWD>, Box<dyn std::erro
             name
         ),
         twitter_media,
-        name: name,
+        name,
         id: tid,
-        extra_urls: extra_urls,
+        extra_urls,
     }))
 }

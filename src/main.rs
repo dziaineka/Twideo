@@ -4,9 +4,9 @@ extern crate twitter_video_dl;
 mod helpers;
 
 use dotenv::dotenv;
-use helpers::{generate_code, get_twitter_data, twitt_id, TwitterID, DATABASE_URL, TWD};
+use helpers::{generate_code, get_twitter_data, twitt_id, TwitDetails, TwitterID, DATABASE_URL};
 use reqwest::Url;
-use std::{env, error::Error};
+use std::error::Error;
 use teloxide::{
     payloads::SendMessageSetters,
     prelude2::*,
@@ -33,7 +33,7 @@ enum Response {
     None,
 }
 
-fn message_response_cb(twitter_data: &TWD) -> Response {
+fn message_response_cb(twitter_data: &TwitDetails) -> Response {
     let mut caption_is_set = false;
     let mut media_group = Vec::new();
     let mut allowed = false;
@@ -66,15 +66,15 @@ fn message_response_cb(twitter_data: &TWD) -> Response {
         return Response::Text(twitter_data.caption.to_string());
     }
 
-    return Response::Media(MediaWithExtra {
+    Response::Media(MediaWithExtra {
         media: media_group,
         extra_urls: twitter_data.extra_urls.to_vec(),
         caption: twitter_data.caption.to_string(),
         allowed,
-    });
+    })
 }
 
-fn inline_query_response_cb(twitter_data: &TWD) -> Response {
+fn inline_query_response_cb(twitter_data: &TwitDetails) -> Response {
     let mut inline_result: Vec<InlineQueryResult> = Vec::new();
 
     if twitter_data.twitter_media.is_empty() {
@@ -156,34 +156,32 @@ fn inline_query_response_cb(twitter_data: &TWD) -> Response {
             _ => {}
         }
     }
-    return Response::InlineResults(inline_result);
+    Response::InlineResults(inline_result)
 }
 
 async fn convert_to_tl<F>(url: &str, callback: F) -> Response
 where
-    F: Fn(&TWD) -> Response,
+    F: Fn(&TwitDetails) -> Response,
 {
-    match twitt_id(url) {
-        TwitterID::id(id) => {
-            let data = get_twitter_data(id).await.unwrap_or(None);
-            if let Some(twitter_data) = data {
-                return callback(&twitter_data);
-            }
+    if let TwitterID::Id(id) = twitt_id(url) {
+        let data = get_twitter_data(id).await.unwrap_or(None);
+        if let Some(twitter_data) = data {
+            return callback(&twitter_data);
         }
-        _ => {}
     }
-    return Response::None;
+
+    Response::None
 }
 
 async fn convert_to_tl_by_id<F>(id: u64, callback: F) -> Response
 where
-    F: Fn(&TWD) -> Response,
+    F: Fn(&TwitDetails) -> Response,
 {
     let data = get_twitter_data(id).await.unwrap_or(None);
     if let Some(twitter_data) = data {
         return callback(&twitter_data);
     }
-    return Response::None;
+    Response::None
 }
 
 async fn message_handler(
@@ -192,9 +190,9 @@ async fn message_handler(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let chat = &m.chat;
     let username = chat.username().map(String::from);
-    let dbm = DBManager::new(&&DATABASE_URL).unwrap();
+    let dbm = DBManager::new(&DATABASE_URL).unwrap();
 
-    dbm.create_user(
+    _ = dbm.create_user(
         chat.id,
         format!(
             "{} {}",
@@ -224,8 +222,13 @@ async fn message_handler(
                     if response.is_err() && media_with_extra.allowed {
                         bot.send_message(
                             chat.id,
-                            format!("Telegram is unable to download high quality video.\nI will send you other qualities.")
-                        ).parse_mode(ParseMode::Html)
+                            concat!(
+                                "Telegram is unable to download high quality video.\n",
+                                "I will send you other qualities."
+                            )
+                            .to_string(),
+                        )
+                        .parse_mode(ParseMode::Html)
                         .disable_web_page_preview(true)
                         .await?;
 
@@ -272,20 +275,18 @@ async fn callback_queries_handler(
     let tid: u64 = q.data.unwrap().parse().unwrap();
     let response = convert_to_tl_by_id(tid, message_response_cb).await;
 
-    match response {
-        Response::Media(media_with_extra) => {
-            bot.send_media_group(q.from.id, media_with_extra.media)
-                .await?;
-        }
-        _ => (),
+    if let Response::Media(media_with_extra) = response {
+        bot.send_media_group(q.from.id, media_with_extra.media)
+            .await?;
     }
+
     Ok(())
 }
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    teloxide::enable_logging!();
+    pretty_env_logger::init();
 
     log::info!("Starting twideo");
 
