@@ -6,3 +6,5 @@ rust-toolchain
 .idea
 send_to_all.py
 
+# fly.io config
+fly.toml
