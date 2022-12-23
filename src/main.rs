@@ -103,6 +103,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
             Response::Text(caption) => {
                 bot.send_message(chat.id, caption)
                     .reply_to_message_id(message.id)
+                    .disable_notification(true)
                     .parse_mode(ParseMode::Html)
                     .disable_web_page_preview(true)
                     .await?;
@@ -111,6 +112,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
                 let response = bot
                     .send_media_group(chat.id, media_with_extra.media)
                     .reply_to_message_id(message.id)
+                    .disable_notification(true)
                     .await;
 
                 if response.is_err() && media_with_extra.allowed {
@@ -123,6 +125,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
                         .to_string(),
                     )
                     .reply_to_message_id(message.id)
+                    .disable_notification(true)
                     .parse_mode(ParseMode::Html)
                     .disable_web_page_preview(true)
                     .await?;
@@ -139,6 +142,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
                             )],
                         )
                         .reply_to_message_id(message.id)
+                        .disable_notification(true)
                         .await?;
                     }
                 }
