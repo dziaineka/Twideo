@@ -1,6 +1,6 @@
 [package]
 name = "twitter_video_dl"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["nima <neemaiox@gmail.com>"]
 edition = "2018"
 
