@@ -1,6 +1,6 @@
 services:
   twideo_bot:
-    # image: skaborik/twideo_bot:1.1.1
+    # image: skaborik/twideo_bot:1.1.2
     build:
       context: ./
       dockerfile: Dockerfile
