@@ -4,7 +4,7 @@ extern crate twitter_video_dl;
 mod helpers;
 
 use dotenvy::dotenv;
-use helpers::{get_twitter_data, twitt_id, TwitDetails, TwitterID};
+use helpers::{get_twitter_data, get_twitter_id, TwitDetails, TwitterID};
 use reqwest::Url;
 use std::error::Error;
 use teloxide::{
@@ -68,11 +68,11 @@ fn message_response_cb(twitter_data: &TwitDetails) -> Response {
     })
 }
 
-async fn convert_to_tl<F>(url: &str, callback: F) -> Response
+async fn convert_to_telegram<F>(url: &str, callback: F) -> Response
 where
     F: Fn(&TwitDetails) -> Response,
 {
-    if let TwitterID::Id(id) = twitt_id(url) {
+    if let TwitterID::Id(id) = get_twitter_id(url) {
         let data = get_twitter_data(id).await.unwrap_or(None);
         if let Some(twitter_data) = data {
             return callback(&twitter_data);
@@ -97,7 +97,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
     let chat = &message.chat;
 
     if let Some(maybe_url) = message.text() {
-        let response = convert_to_tl(maybe_url, message_response_cb).await;
+        let response = convert_to_telegram(maybe_url, message_response_cb).await;
 
         match response {
             Response::Text(caption) => {

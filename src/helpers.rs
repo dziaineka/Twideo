@@ -13,7 +13,7 @@ lazy_static::lazy_static! {
     static ref RE : regex::Regex= Regex::new("https://t.co/\\w+\\b").unwrap();
 }
 
-pub fn twitt_id(link: &str) -> TwitterID {
+pub fn get_twitter_id(link: &str) -> TwitterID {
     if (link.starts_with("https://twitter.com/") || link.starts_with("https://mobile.twitter.com/"))
         && !link.starts_with("https://twitter.com/i/spaces/")
     {
@@ -48,14 +48,14 @@ pub enum TwitterID {
     None,
 }
 
-pub async fn get_twitter_data(tid: u64) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
+pub async fn get_twitter_data(twitter_id: u64) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
     log::info!("Send request to twitter");
     let client = reqwest::Client::new();
 
     let multimedia_response = client
         .get(format!(
             "{}/{}?{}",
-            &*TWITTER_MULTIMEDIA_URL, tid, &*TWITTER_EXPANSIONS_PARAMS
+            &*TWITTER_MULTIMEDIA_URL, twitter_id, &*TWITTER_EXPANSIONS_PARAMS
         ))
         .header("AUTHORIZATION", &*TWITTER_BEARER_TOKEN)
         .send()
@@ -156,12 +156,12 @@ pub async fn get_twitter_data(tid: u64) -> Result<Option<TwitDetails>, Box<dyn s
                 return clean_caption.as_ref().unwrap();
             }(),
             username,
-            tid,
+            twitter_id,
             name
         ),
         twitter_media,
         name,
-        id: tid,
+        id: twitter_id,
         extra_urls,
     }))
 }
