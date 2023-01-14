@@ -98,10 +98,24 @@ where
 async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error + Send + Sync>> {
     let chat = &message.chat;
 
-    if let Some(maybe_url) = message.text() {
-        let response = convert_to_telegram(maybe_url, message_response_cb).await;
+    let futures = if let Some(text) = message.text() {
+        if !text.contains("twitter") {
+            return Ok(());
+        };
 
-        match response {
+        text.split_ascii_whitespace()
+            .into_iter()
+            .filter(|part| part.contains("twitter"))
+            .map(|part| convert_to_telegram(part, message_response_cb))
+            .collect()
+    } else {
+        vec![]
+    };
+
+    for future in futures {
+        let content_to_send = future.await;
+
+        match content_to_send {
             Response::Text(caption) => {
                 bot.send_message(chat.id, caption)
                     .reply_to_message_id(message.id)
