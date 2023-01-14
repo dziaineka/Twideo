@@ -3,10 +3,12 @@ extern crate twitter_video_dl;
 
 mod helpers;
 
+use chrono::Local;
 use dotenvy::dotenv;
 use helpers::{get_twitter_data, get_twitter_id, TwitDetails, TwitterID};
 use reqwest::Url;
 use std::error::Error;
+use std::io::Write;
 use teloxide::{
     payloads::SendMessageSetters,
     prelude::*,
@@ -175,11 +177,16 @@ async fn main() {
 
     pretty_env_logger::formatted_builder()
         .write_style(pretty_env_logger::env_logger::WriteStyle::Auto)
-        .filter(
-            Some(&env!("CARGO_CRATE_NAME").replace('-', "_")),
-            log::LevelFilter::Trace,
-        )
-        .filter(Some("teloxide"), log::LevelFilter::Info)
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] - {}",
+                Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter(None, log::LevelFilter::Info)
         .init();
 
     log::info!("Starting twideo");
