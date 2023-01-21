@@ -164,25 +164,16 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
 
                     if !success {
                         let mut text: String =
-                            media_with_extra.extra_urls.first().unwrap().url.clone();
+                            "🤖 failed to embed media so use link this time: ".to_owned();
+                        text.push_str(&media_with_extra.extra_urls.first().unwrap().url);
                         text.push_str("\n\n");
                         text.push_str(&media_with_extra.caption);
 
-                        let message = bot
-                            .send_message(chat.id, text)
+                        bot.send_message(chat.id, text)
                             .reply_to_message_id(message.id)
                             .disable_notification(true)
                             .parse_mode(ParseMode::Html)
                             .await?;
-
-                        bot.send_message(
-                            chat.id,
-                            "Sorry, failed to embed media so use link this time 😞",
-                        )
-                        .reply_to_message_id(message.id)
-                        .disable_notification(true)
-                        .parse_mode(ParseMode::Html)
-                        .await?;
                     }
                 }
             }
