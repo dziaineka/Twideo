@@ -14,17 +14,19 @@ lazy_static::lazy_static! {
 }
 
 pub fn get_twitter_id(link: &str) -> TwitterID {
-    if (link.starts_with("https://twitter.com/") || link.starts_with("https://mobile.twitter.com/"))
-        && !link.starts_with("https://twitter.com/i/spaces/")
-    {
-        let parsed: Vec<&str> = (link[20..]).split('/').collect();
-        let last_parts: Vec<&str> = parsed.last().unwrap().split('?').collect();
-        let possible_id = last_parts.first().unwrap().parse().unwrap_or(0);
-        if possible_id > 0 {
-            return TwitterID::Id(possible_id);
-        }
+    if link.contains("twitter.com/i/spaces/") {
+        return TwitterID::None;
     }
-    TwitterID::None
+
+    let parsed: Vec<&str> = (link[20..]).split('/').collect();
+    let last_parts: Vec<&str> = parsed.last().unwrap().split('?').collect();
+    let possible_id = last_parts.first().unwrap().parse().unwrap_or(0);
+
+    if possible_id > 0 {
+        TwitterID::Id(possible_id)
+    } else {
+        TwitterID::None
+    }
 }
 
 #[derive(Debug)]
@@ -48,7 +50,9 @@ pub enum TwitterID {
     None,
 }
 
-pub async fn get_twitter_data(twitter_id: u64) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
+pub async fn get_twitter_data(
+    twitter_id: u64,
+) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
     log::info!("Send request to twitter");
     let client = reqwest::Client::new();
 
