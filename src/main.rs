@@ -132,33 +132,56 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
                     .await;
 
                 if response.is_err() && media_with_extra.allowed {
-                    bot.send_message(
-                        chat.id,
-                        concat!(
-                            "Telegram is unable to download high quality video.\n",
-                            "I will send you other qualities."
-                        )
-                        .to_string(),
-                    )
-                    .reply_to_message_id(message.id)
-                    .disable_notification(true)
-                    .parse_mode(ParseMode::Html)
-                    .disable_web_page_preview(true)
-                    .await?;
+                    // seems like too high quality video for telegram to download let's try sending
+                    // lower sizes
+                    let mut success = false;
 
                     for variant in &media_with_extra.extra_urls {
-                        bot.send_media_group(
+                        let result = bot
+                            .send_media_group(
+                                chat.id,
+                                [InputMedia::Video(
+                                    InputMediaVideo::new(InputFile::url(
+                                        Url::parse(variant.url.as_str()).unwrap(),
+                                    ))
+                                    .caption(&media_with_extra.caption)
+                                    .parse_mode(ParseMode::Html),
+                                )],
+                            )
+                            .reply_to_message_id(message.id)
+                            .disable_notification(true)
+                            .await;
+
+                        match result {
+                            Err(_) => success = false,
+
+                            Ok(_) => success = true,
+                        }
+                    }
+
+                    // if still failure let's send media as a link and hope
+                    // telegram will preview it
+
+                    if !success {
+                        let mut text: String =
+                            media_with_extra.extra_urls.first().unwrap().url.clone();
+                        text.push_str("\n\n");
+                        text.push_str(&media_with_extra.caption);
+
+                        let message = bot
+                            .send_message(chat.id, text)
+                            .reply_to_message_id(message.id)
+                            .disable_notification(true)
+                            .parse_mode(ParseMode::Html)
+                            .await?;
+
+                        bot.send_message(
                             chat.id,
-                            [InputMedia::Video(
-                                InputMediaVideo::new(InputFile::url(
-                                    Url::parse(variant.url.as_str()).unwrap(),
-                                ))
-                                .caption(&media_with_extra.caption)
-                                .parse_mode(ParseMode::Html),
-                            )],
+                            "Sorry, failed to embed media so use link this time 😞",
                         )
                         .reply_to_message_id(message.id)
                         .disable_notification(true)
+                        .parse_mode(ParseMode::Html)
                         .await?;
                     }
                 }
