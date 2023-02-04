@@ -5,14 +5,17 @@ mod helpers;
 
 use chrono::Local;
 use dotenvy::dotenv;
-use helpers::{get_twitter_data, get_twitter_id, TwitDetails, TwitterID};
+use helpers::{get_thread, get_twitter_data, get_twitter_id, TwitDetails, TwitterID};
 use reqwest::Url;
 use std::error::Error;
 use std::io::Write;
 use teloxide::{
     payloads::SendMessageSetters,
     prelude::*,
-    types::{InputFile, InputMedia, InputMediaPhoto, InputMediaVideo, ParseMode},
+    types::{
+        Chat, ChatId, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, InputMedia,
+        InputMediaPhoto, InputMediaVideo, ParseMode,
+    },
 };
 use twitter_video_dl::serde_schemes::Variant;
 
@@ -21,18 +24,41 @@ struct MediaWithExtra {
     extra_urls: Vec<Variant>,
     caption: String,
     allowed: bool,
+    keyboard: Option<Vec<Vec<InlineKeyboardButton>>>,
 }
 
-enum Response {
+struct TelegramTextMessage {
+    text: String,
+    keyboard: Option<Vec<Vec<InlineKeyboardButton>>>,
+}
+
+enum TelegramMessage {
     Media(MediaWithExtra),
-    Text(String),
+    Text(TelegramTextMessage),
     None,
 }
 
-fn message_response_cb(twitter_data: &TwitDetails) -> Response {
+const FULL_ALBUM: u8 = 1;
+const THREAD: u8 = 2;
+
+fn message_response_cb(twitter_data: &TwitDetails) -> TelegramMessage {
     let mut caption_is_set = false;
     let mut media_group = Vec::new();
     let mut allowed = false;
+
+    let mut keyboard;
+
+    if twitter_data.thread_count > 0 && twitter_data.next <= twitter_data.thread_count as u8 {
+        keyboard = Some(vec![vec![InlineKeyboardButton::callback(
+            "next".to_string(),
+            format!(
+                "{}_{}_{}_{}",
+                THREAD, twitter_data.conversation_id, twitter_data.user_id, twitter_data.next
+            ),
+        )]]);
+    } else {
+        keyboard = None;
+    }
 
     for media in &twitter_data.twitter_media {
         let input_file = InputFile::url(Url::parse(&media.url).unwrap());
@@ -59,20 +85,24 @@ fn message_response_cb(twitter_data: &TwitDetails) -> Response {
         }
     }
     if !caption_is_set {
-        return Response::Text(twitter_data.caption.to_string());
+        return TelegramMessage::Text(TelegramTextMessage {
+            text: twitter_data.caption.to_string(),
+            keyboard,
+        });
     }
 
-    Response::Media(MediaWithExtra {
+    TelegramMessage::Media(MediaWithExtra {
         media: media_group,
         extra_urls: twitter_data.extra_urls.to_vec(),
         caption: twitter_data.caption.to_string(),
         allowed,
+        keyboard,
     })
 }
 
-async fn convert_to_telegram<F>(url: &str, callback: F) -> Response
+async fn convert_to_telegram<F>(url: &str, callback: F) -> TelegramMessage
 where
-    F: Fn(&TwitDetails) -> Response,
+    F: Fn(&TwitDetails) -> TelegramMessage,
 {
     if let TwitterID::Id(id) = get_twitter_id(url) {
         let data = get_twitter_data(id).await.unwrap_or(None);
@@ -81,18 +111,112 @@ where
         }
     }
 
-    Response::None
+    TelegramMessage::None
 }
 
-async fn convert_to_tl_by_id<F>(id: u64, callback: F) -> Response
+async fn convert_to_telegram_by_id<F>(id: u64, next: u8, callback: F) -> TelegramMessage
 where
-    F: Fn(&TwitDetails) -> Response,
+    F: Fn(&TwitDetails) -> TelegramMessage,
 {
     let data = get_twitter_data(id).await.unwrap_or(None);
-    if let Some(twitter_data) = data {
+    if let Some(mut twitter_data) = data {
+        twitter_data.next = next;
         return callback(&twitter_data);
     }
-    Response::None
+    TelegramMessage::None
+}
+
+async fn send_telegram_message(
+    message_to_send: TelegramMessage,
+    message_to_reply: Option<&Message>,
+    bot: &Bot,
+    chat: &Chat,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    match message_to_send {
+        TelegramMessage::Text(response) => {
+            let telegram_message = bot
+                .send_message(chat.id, response.text)
+                .disable_notification(true)
+                .parse_mode(ParseMode::Html)
+                .disable_web_page_preview(true);
+
+            if let Some(message_to_reply) = message_to_reply {
+                telegram_message = telegram_message.reply_to_message_id(message_to_reply.id)
+            }
+
+            if let Some(keyboard) = response.keyboard {
+                telegram_message
+                    .reply_markup(InlineKeyboardMarkup::new(keyboard))
+                    .await?;
+            } else {
+                telegram_message.await?;
+            }
+        }
+        TelegramMessage::Media(media_with_extra) => {
+            let response = bot
+                .send_media_group(chat.id, media_with_extra.media)
+                .reply_to_message_id(message_to_reply.id)
+                .disable_notification(true)
+                .await;
+
+            if response.is_ok() {
+                if let Some(keyboard) = media_with_extra.keyboard {
+                    bot.send_message(chat.id, "tap button to see next thread")
+                        .disable_notification(true)
+                        .parse_mode(ParseMode::Html)
+                        .disable_web_page_preview(true)
+                        .reply_markup(InlineKeyboardMarkup::new(keyboard))
+                        .await?;
+                }
+            } else if media_with_extra.allowed {
+                // seems like too high quality video for telegram to download let's try sending
+                // lower sizes
+                let mut success = false;
+
+                for variant in &media_with_extra.extra_urls {
+                    let result = bot
+                        .send_media_group(
+                            chat.id,
+                            [InputMedia::Video(
+                                InputMediaVideo::new(InputFile::url(
+                                    Url::parse(variant.url.as_str()).unwrap(),
+                                ))
+                                .caption(&media_with_extra.caption)
+                                .parse_mode(ParseMode::Html),
+                            )],
+                        )
+                        .reply_to_message_id(message_to_reply.id)
+                        .disable_notification(true)
+                        .await;
+
+                    match result {
+                        Err(_) => success = false,
+                        Ok(_) => success = true,
+                    }
+                }
+
+                // if still failure let's send media as a link and hope
+                // telegram will preview it
+
+                if !success {
+                    let mut text: String =
+                        "🤖 failed to embed media so use link this time: ".to_owned();
+                    text.push_str(&media_with_extra.extra_urls.first().unwrap().url);
+                    text.push_str("\n\n");
+                    text.push_str(&media_with_extra.caption);
+
+                    bot.send_message(chat.id, text)
+                        .reply_to_message_id(message_to_reply.id)
+                        .disable_notification(true)
+                        .parse_mode(ParseMode::Html)
+                        .await?;
+                }
+            }
+        }
+        _ => (),
+    }
+
+    Ok(())
 }
 
 async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -114,71 +238,7 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
 
     for future in futures {
         let content_to_send = future.await;
-
-        match content_to_send {
-            Response::Text(caption) => {
-                bot.send_message(chat.id, caption)
-                    .reply_to_message_id(message.id)
-                    .disable_notification(true)
-                    .parse_mode(ParseMode::Html)
-                    .disable_web_page_preview(true)
-                    .await?;
-            }
-            Response::Media(media_with_extra) => {
-                let response = bot
-                    .send_media_group(chat.id, media_with_extra.media)
-                    .reply_to_message_id(message.id)
-                    .disable_notification(true)
-                    .await;
-
-                if response.is_err() && media_with_extra.allowed {
-                    // seems like too high quality video for telegram to download let's try sending
-                    // lower sizes
-                    let mut success = false;
-
-                    for variant in &media_with_extra.extra_urls {
-                        let result = bot
-                            .send_media_group(
-                                chat.id,
-                                [InputMedia::Video(
-                                    InputMediaVideo::new(InputFile::url(
-                                        Url::parse(variant.url.as_str()).unwrap(),
-                                    ))
-                                    .caption(&media_with_extra.caption)
-                                    .parse_mode(ParseMode::Html),
-                                )],
-                            )
-                            .reply_to_message_id(message.id)
-                            .disable_notification(true)
-                            .await;
-
-                        match result {
-                            Err(_) => success = false,
-
-                            Ok(_) => success = true,
-                        }
-                    }
-
-                    // if still failure let's send media as a link and hope
-                    // telegram will preview it
-
-                    if !success {
-                        let mut text: String =
-                            "🤖 failed to embed media so use link this time: ".to_owned();
-                        text.push_str(&media_with_extra.extra_urls.first().unwrap().url);
-                        text.push_str("\n\n");
-                        text.push_str(&media_with_extra.caption);
-
-                        bot.send_message(chat.id, text)
-                            .reply_to_message_id(message.id)
-                            .disable_notification(true)
-                            .parse_mode(ParseMode::Html)
-                            .await?;
-                    }
-                }
-            }
-            _ => (),
-        }
+        send_telegram_message(content_to_send, Some(&message), &bot, chat).await?;
     }
 
     Ok(())
@@ -188,12 +248,42 @@ async fn callback_queries_handler(
     q: CallbackQuery,
     bot: Bot,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let tid: u64 = q.data.unwrap().parse().unwrap();
-    let response = convert_to_tl_by_id(tid, message_response_cb).await;
+    let query = q.data.unwrap();
+    let query_parts = query.split('_').collect::<Vec<&str>>();
+    let query_type = query_parts[0].parse::<u8>().unwrap();
 
-    if let Response::Media(media_with_extra) = response {
-        bot.send_media_group(q.from.id, media_with_extra.media)
-            .await?;
+    match query_type {
+        FULL_ALBUM => {
+            // query template: <query-type>_<tweet-id>
+            let tid = query_parts[1].parse::<u64>().unwrap();
+            let response = convert_to_telegram_by_id(tid, 1, message_response_cb).await;
+            match response {
+                TelegramMessage::Media(media_with_extra) => {
+                    bot.send_media_group(q.from.id, media_with_extra.media)
+                        .await?;
+                }
+                _ => (),
+            }
+        }
+        THREAD => {
+            // query template: <query-type>_<conversation-id>_<user-id>_<thread-number>
+            let conversation_id = query_parts[1].parse::<u64>().unwrap();
+            let user_id = query_parts[2].parse::<u64>().unwrap();
+            let thread_number = query_parts[3].parse::<u8>().unwrap();
+
+            let tid = get_thread(conversation_id, thread_number).await;
+
+            if let Some(tweet_id) = tid {
+                let response =
+                    convert_to_telegram_by_id(tweet_id, thread_number + 1, message_response_cb)
+                        .await;
+                send_telegram_message(response, None, &bot, &(q.message.unwrap().chat)).await?;
+            } else {
+                bot.send_message(q.from.id, "Theres isn't another thread 🤷‍♂️")
+                    .await?;
+            }
+        }
+        _ => {}
     }
 
     Ok(())

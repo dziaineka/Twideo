@@ -15,6 +15,7 @@ lazy_static::lazy_static! {
     ].into_iter().filter(|x| !x.is_empty()).collect::<Vec<String>>();
 
     static ref TWITTER_MULTIMEDIA_URL: &'static str = "https://api.twitter.com/2/tweets";
+    static ref TWITTER_SEARCH_URL: &'static str = "https://api.twitter.com/2/tweets/search/recent";
     static ref TWITTER_EXPANSIONS_PARAMS: &'static str = "expansions=attachments.media_keys,author_id&media.fields=url,variants,preview_image_url&user.fields=name";
     static ref RE : regex::Regex= Regex::new("https://t.co/\\w+\\b").unwrap();
 }
@@ -49,6 +50,10 @@ pub struct TwitDetails {
     pub name: String,
     pub id: u64,
     pub extra_urls: Vec<Variant>,
+    pub conversation_id: u64,
+    pub user_id: u64,
+    pub next: u8,
+    pub thread_count: usize,
 }
 
 pub enum TwitterID {
@@ -85,6 +90,15 @@ pub async fn get_twitter_data(
     let mut extra_urls: Vec<Variant> = Vec::new();
     let mut name = String::new();
     let mut username = String::new();
+    let mut conversation_id = multimedia
+        .data
+        .conversation_id
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
+    let mut user_id = multimedia.data.author_id.unwrap().parse::<u64>().unwrap();
+
+    let thread_count = fetch_threads(conversation_id, user_id).await;
 
     if let Some(includes) = &multimedia.includes {
         name = includes.users[0].name.to_string();
@@ -162,7 +176,7 @@ pub async fn get_twitter_data(
         }
     }
 
-    Ok(Some(TwitDetails {
+    Ok(Some(TWD {
         caption: format!(
             "{} \n\n<a href='https://twitter.com/{}/status/{}'>&#x1F464 {}</a>",
             || -> &str {
@@ -176,8 +190,58 @@ pub async fn get_twitter_data(
             name
         ),
         twitter_media,
-        name,
+        name: name,
         id: twitter_id,
-        extra_urls,
+        extra_urls: extra_urls,
+        next: 1,
+        conversation_id: conversation_id,
+        user_id: user_id,
+        thread_count,
     }))
+}
+
+async fn fetch_threads(conversation_id: u64, user_id: u64) -> usize {
+    // check cache if fetch threads before
+
+    log::info!("fetch thread");
+
+    let token = TWITTER_BEARER_TOKENS
+        .choose(&mut rand::thread_rng())
+        .unwrap()
+        .to_string();
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!(
+            "{0}?query=conversation_id:{1} from:{2} to:{2}&max_results=100",
+            &*TWITTER_SEARCH_URL, conversation_id, user_id
+        ))
+        .header("AUTHORIZATION", format!("Bearer {}", token))
+        .send()
+        .await;
+
+    if response.is_err() {
+        log::info!("fetch thread failed");
+        return 0;
+    }
+
+    let result = response.unwrap();
+    log::info!("Status {}", result.status().as_u16());
+
+    let response_json = result.json::<ThreadSearchResult>().await.unwrap();
+
+    let thread_ids = response_json
+        .data
+        .iter()
+        .map(|x| x.id.parse::<u64>().unwrap())
+        .collect::<Vec<u64>>();
+
+    // save thread_ids to cache
+    return thread_ids.len();
+}
+
+pub async fn get_thread(converation_id: u64, thread_number: u8) -> Option<u64> {
+    // get possible tweet id related to given conversation id
+    Some(0)
 }

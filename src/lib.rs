@@ -38,11 +38,23 @@ pub mod serde_schemes {
     #[derive(Deserialize, Debug)]
     pub struct MultimediaData {
         pub text: Option<String>,
+        pub conversation_id: Option<String>,
+        pub author_id: Option<String>,
     }
 
     #[derive(Deserialize, Debug)]
     pub struct MultimediaBody {
         pub includes: Option<MultimediaIncludes>,
         pub data: MultimediaData,
+    }
+
+    #[derive(Deserialize, Debug)]
+    pub struct ThreadSearchData {
+        pub id: String,
+    }
+
+    #[derive(Deserialize, Debug)]
+    pub struct ThreadSearchResult {
+        pub data: Vec<ThreadSearchData>,
     }
 }
