@@ -52,8 +52,8 @@ fn message_response_cb(twitter_data: &TwitDetails) -> TelegramMessage {
         keyboard = Some(vec![vec![InlineKeyboardButton::callback(
             "Next thread".to_string(),
             format!(
-                "{}_{}_{}_{}",
-                THREAD, twitter_data.conversation_id, twitter_data.user_id, twitter_data.next
+                "{}_{}_{}",
+                THREAD, twitter_data.conversation_id, twitter_data.next
             ),
         )]]);
     } else {
@@ -281,8 +281,7 @@ async fn callback_queries_handler(
         THREAD => {
             // query template: <query-type>_<conversation-id>_<user-id>_<thread-number>
             let conversation_id = query_parts[1].parse::<u64>().unwrap();
-            let user_id = query_parts[2].parse::<u64>().unwrap();
-            let thread_number = query_parts[3].parse::<u8>().unwrap();
+            let thread_number = query_parts[2].parse::<u8>().unwrap();
 
             let tid = get_thread(conversation_id, thread_number).await;
 
