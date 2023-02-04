@@ -13,8 +13,8 @@ use teloxide::{
     payloads::SendMessageSetters,
     prelude::*,
     types::{
-        Chat, ChatId, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, InputMedia,
-        InputMediaPhoto, InputMediaVideo, ParseMode,
+        Chat, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, InputMedia, InputMediaPhoto,
+        InputMediaVideo, ParseMode,
     },
 };
 use twitter_video_dl::serde_schemes::Variant;
@@ -46,11 +46,11 @@ fn message_response_cb(twitter_data: &TwitDetails) -> TelegramMessage {
     let mut media_group = Vec::new();
     let mut allowed = false;
 
-    let mut keyboard;
+    let keyboard;
 
     if twitter_data.thread_count > 0 && twitter_data.next <= twitter_data.thread_count as u8 {
         keyboard = Some(vec![vec![InlineKeyboardButton::callback(
-            "next".to_string(),
+            "Next thread".to_string(),
             format!(
                 "{}_{}_{}_{}",
                 THREAD, twitter_data.conversation_id, twitter_data.user_id, twitter_data.next
@@ -134,7 +134,7 @@ async fn send_telegram_message(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     match message_to_send {
         TelegramMessage::Text(response) => {
-            let telegram_message = bot
+            let mut telegram_message = bot
                 .send_message(chat.id, response.text)
                 .disable_notification(true)
                 .parse_mode(ParseMode::Html)
@@ -153,11 +153,15 @@ async fn send_telegram_message(
             }
         }
         TelegramMessage::Media(media_with_extra) => {
-            let response = bot
+            let mut telegram_message = bot
                 .send_media_group(chat.id, media_with_extra.media)
-                .reply_to_message_id(message_to_reply.id)
-                .disable_notification(true)
-                .await;
+                .disable_notification(true);
+
+            if let Some(message_to_reply) = message_to_reply {
+                telegram_message = telegram_message.reply_to_message_id(message_to_reply.id)
+            }
+
+            let response = telegram_message.await;
 
             if response.is_ok() {
                 if let Some(keyboard) = media_with_extra.keyboard {
@@ -174,7 +178,7 @@ async fn send_telegram_message(
                 let mut success = false;
 
                 for variant in &media_with_extra.extra_urls {
-                    let result = bot
+                    let mut telegram_message = bot
                         .send_media_group(
                             chat.id,
                             [InputMedia::Video(
@@ -185,11 +189,15 @@ async fn send_telegram_message(
                                 .parse_mode(ParseMode::Html),
                             )],
                         )
-                        .reply_to_message_id(message_to_reply.id)
-                        .disable_notification(true)
-                        .await;
+                        .disable_notification(true);
 
-                    match result {
+                    if let Some(message_to_reply) = message_to_reply {
+                        telegram_message = telegram_message.reply_to_message_id(message_to_reply.id)
+                    }
+
+                    let response = telegram_message.await;
+
+                    match response {
                         Err(_) => success = false,
                         Ok(_) => success = true,
                     }
@@ -205,11 +213,16 @@ async fn send_telegram_message(
                     text.push_str("\n\n");
                     text.push_str(&media_with_extra.caption);
 
-                    bot.send_message(chat.id, text)
-                        .reply_to_message_id(message_to_reply.id)
+                    let mut telegram_message = bot
+                        .send_message(chat.id, text)
                         .disable_notification(true)
-                        .parse_mode(ParseMode::Html)
-                        .await?;
+                        .parse_mode(ParseMode::Html);
+
+                    if let Some(message_to_reply) = message_to_reply {
+                        telegram_message = telegram_message.reply_to_message_id(message_to_reply.id)
+                    }
+
+                    _ = telegram_message.await;
                 }
             }
         }
@@ -279,8 +292,7 @@ async fn callback_queries_handler(
                         .await;
                 send_telegram_message(response, None, &bot, &(q.message.unwrap().chat)).await?;
             } else {
-                bot.send_message(q.from.id, "Theres isn't another thread 🤷‍♂️")
-                    .await?;
+                bot.send_message(q.from.id, "Thread not found 🤷‍♂️").await?;
             }
         }
         _ => {}
