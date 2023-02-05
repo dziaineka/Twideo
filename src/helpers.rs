@@ -55,6 +55,7 @@ pub struct TwitDetails {
     pub extra_urls: Vec<Variant>,
     pub conversation_id: u64,
     pub next: u8,
+    pub user_id: u64,
     pub thread_count: usize,
 }
 
@@ -77,7 +78,7 @@ pub async fn get_twitter_data(
 
     let multimedia_response = client
         .get(format!(
-            "{}/{}?{}",
+            "{}/{}?tweet.fields=conversation_id&{}",
             &*TWITTER_MULTIMEDIA_URL, twitter_id, &*TWITTER_EXPANSIONS_PARAMS
         ))
         .header("AUTHORIZATION", format!("Bearer {}", token))
@@ -198,6 +199,7 @@ pub async fn get_twitter_data(
         next: 1,
         conversation_id: conversation_id,
         thread_count,
+        user_id,
     }))
 }
 
@@ -215,7 +217,7 @@ async fn fetch_threads(conversation_id: u64, user_id: u64) -> usize {
     let mut con = client.unwrap().get_connection().unwrap();
     let redis_key = format!("{}:{}", CONVERSATION_KEY, conversation_id);
 
-    let mut threads_count: usize = con.hlen(redis_key.clone()).unwrap();
+    let mut threads_count: usize = con.hlen(redis_key.clone()).unwrap_or(0);
 
     if threads_count > 0 {
         log::info!("threads exists in cache");
@@ -305,7 +307,7 @@ async fn fetch_threads(conversation_id: u64, user_id: u64) -> usize {
     return threads_count;
 }
 
-pub async fn get_thread(conversation_id: u64, thread_number: u8) -> Option<u64> {
+pub async fn get_thread(conversation_id: u64, thread_number: u8, user_id: u64) -> Option<u64> {
     let client = redis::Client::open(&**REDIS_URL);
 
     if client.is_err() {
@@ -314,9 +316,21 @@ pub async fn get_thread(conversation_id: u64, thread_number: u8) -> Option<u64> 
 
     let mut con = client.unwrap().get_connection().unwrap();
     let redis_key = format!("{}:{}", CONVERSATION_KEY, conversation_id);
-    let tid: String = con.hget(redis_key, thread_number).unwrap();
+
+    let mut tid: String = con
+        .hget(redis_key.clone(), thread_number)
+        .unwrap_or("".to_string());
+
     if !tid.is_empty() {
         return Some(tid.parse::<u64>().unwrap());
     }
+
+    let thread_count = fetch_threads(conversation_id, user_id).await;
+
+    if thread_count > 0 {
+        tid = con.hget(redis_key, thread_number).unwrap();
+        return Some(tid.parse::<u64>().unwrap());
+    }
+
     return None;
 }
