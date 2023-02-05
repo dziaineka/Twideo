@@ -5,20 +5,21 @@
 1. [Download Rust](http://rustup.rs/).
 2. Create a new bot using [@Botfather](https://t.me/botfather) to get a token in the format `123456789:blablabla`.
 3. Get an [twitter access token](https://developer.twitter.com/en/apply-for-access).
-4. Initialize the `TWITTER_BEARER_TOKEN`, `TWITTER_BEARER_TOKEN2`(to handle too many requests per second), `TELOXIDE_TOKEN` environmental variables:
+4. Optional Step: Install [redis](https://redis.io/docs/getting-started/)(for caching threads)
+5. Initialize the `TWITTER_BEARER_TOKEN`, `TWITTER_BEARER_TOKEN2`(to handle too many requests per second), `TELOXIDE_TOKEN` environmental variables:
 
     ```bash
     # Unix-like
     $ export TELOXIDE_TOKEN=<Your token here>
     $ export TWITTER_BEARER_TOKEN2=<Your 2nd bearer token or just leave it blank>
     $ export TWITTER_BEARER_TOKEN=<Your bearer token here>
+	$ export REDIS_URL=<Your redis url>
 
     # Windows
     $ set TELOXIDE_TOKEN=<Your token here>
     $ set TWITTER_BEARER_TOKEN=<Your bearer token here>
 	$ set TWITTER_BEARER_TOKEN2=<Your 2nd bearer token or just leave it blank>
-
-    Of course you can create a `.env` file and set your environmental variables there.
+	$ set REDIS_URL=<Your redis url>
     ```
 
     You can rename `.env-template` file to `.env` and put your environmental variables there.
