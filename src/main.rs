@@ -49,7 +49,7 @@ fn message_response_cb(twitter_data: &TwitDetails) -> TelegramMessage {
     let keyboard =
         if twitter_data.thread_count > 0 && twitter_data.next <= twitter_data.thread_count as u8 {
             Some(vec![vec![InlineKeyboardButton::callback(
-                "Next thread".to_string(),
+                "Next tweet from thread".to_string(),
                 format!(
                     "{}_{}_{}_{}",
                     THREAD, twitter_data.conversation_id, twitter_data.user_id, twitter_data.next
@@ -275,21 +275,36 @@ async fn callback_queries_handler(
             send_telegram_message(response, None, &bot, q.from.id).await?;
         }
         THREAD => {
-            // query template: <query-type>_<conversation-id>_<user-id>_<thread-number>
-            let conversation_id = query_parts[1].parse::<u64>().unwrap();
-            let user_id = query_parts[2].parse::<u64>().unwrap();
-            let thread_number = query_parts[3].parse::<u8>().unwrap();
+            if let Some(pressed_message) = q.message {
+                _ = bot
+                    .edit_message_reply_markup(pressed_message.chat.id, pressed_message.id)
+                    .await;
 
-            let tid = get_thread(conversation_id, thread_number, user_id).await;
+                // query template: <query-type>_<conversation-id>_<user-id>_<thread-number>
+                let conversation_id = query_parts[1].parse::<u64>().unwrap();
+                let user_id = query_parts[2].parse::<u64>().unwrap();
+                let thread_number = query_parts[3].parse::<u8>().unwrap();
 
-            if let Some(tweet_id) = tid {
-                let response =
-                    convert_to_telegram_by_id(tweet_id, thread_number + 1, message_response_cb)
-                        .await;
-                send_telegram_message(response, None, &bot, q.from.id).await?;
-            } else {
-                bot.send_message(q.from.id, "Thread not found 🤷‍♂️").await?;
-            }
+                let tid = get_thread(conversation_id, thread_number, user_id).await;
+
+                if let Some(tweet_id) = tid {
+                    let response =
+                        convert_to_telegram_by_id(tweet_id, thread_number + 1, message_response_cb)
+                            .await;
+                    send_telegram_message(
+                        response,
+                        Some(&pressed_message),
+                        &bot,
+                        pressed_message.chat.id,
+                    )
+                    .await?;
+                } else {
+                    bot.send_message(pressed_message.chat.id, "Thread not found 🤷‍♂️")
+                        .reply_to_message_id(pressed_message.id)
+                        .disable_notification(true)
+                        .await?;
+                }
+            };
         }
         _ => {}
     }
