@@ -1,8 +1,8 @@
 extern crate lazy_static;
 
+use rand::seq::SliceRandom;
 use regex::Regex;
 use std::env;
-use rand::seq::SliceRandom;
 use twitter_video_dl::serde_schemes::*;
 
 lazy_static::lazy_static! {
@@ -10,10 +10,10 @@ lazy_static::lazy_static! {
     static ref TWITTER_V2_URL: &'static str = "https://api.twitter.com/2/tweets?expansions=author_id&ids=";
 
     static ref TWITTER_BEARER_TOKENS: Vec<String> = vec![
-        env::var("TWITTER_BEARER_TOKEN").unwrap_or("".to_string()), 
+        env::var("TWITTER_BEARER_TOKEN").unwrap_or("".to_string()),
         env::var("TWITTER_BEARER_TOKEN2").unwrap_or("".to_string())
     ].into_iter().filter(|x| !x.is_empty()).collect::<Vec<String>>();
-    
+
     static ref TWITTER_MULTIMEDIA_URL: &'static str = "https://api.twitter.com/2/tweets";
     static ref TWITTER_EXPANSIONS_PARAMS: &'static str = "expansions=attachments.media_keys,author_id&media.fields=url,variants,preview_image_url&user.fields=name";
     static ref RE : regex::Regex= Regex::new("https://t.co/\\w+\\b").unwrap();
@@ -60,8 +60,11 @@ pub async fn get_twitter_data(
     twitter_id: u64,
 ) -> Result<Option<TwitDetails>, Box<dyn std::error::Error>> {
     log::info!("Send request to twitter");
-    
-    let token = TWITTER_BEARER_TOKENS.choose(&mut rand::thread_rng()).unwrap().to_string();
+
+    let token = TWITTER_BEARER_TOKENS
+        .choose(&mut rand::thread_rng())
+        .unwrap()
+        .to_string();
 
     let client = reqwest::Client::new();
 
