@@ -46,19 +46,18 @@ fn message_response_cb(twitter_data: &TwitDetails) -> TelegramMessage {
     let mut media_group = Vec::new();
     let mut allowed = false;
 
-    let keyboard;
-
-    if twitter_data.thread_count > 0 && twitter_data.next <= twitter_data.thread_count as u8 {
-        keyboard = Some(vec![vec![InlineKeyboardButton::callback(
-            "Next thread".to_string(),
-            format!(
-                "{}_{}_{}_{}",
-                THREAD, twitter_data.conversation_id, twitter_data.user_id, twitter_data.next
-            ),
-        )]]);
-    } else {
-        keyboard = None;
-    }
+    let keyboard =
+        if twitter_data.thread_count > 0 && twitter_data.next <= twitter_data.thread_count as u8 {
+            Some(vec![vec![InlineKeyboardButton::callback(
+                "Next thread".to_string(),
+                format!(
+                    "{}_{}_{}_{}",
+                    THREAD, twitter_data.conversation_id, twitter_data.user_id, twitter_data.next
+                ),
+            )]])
+        } else {
+            None
+        };
 
     for media in &twitter_data.twitter_media {
         let input_file = InputFile::url(Url::parse(&media.url).unwrap());

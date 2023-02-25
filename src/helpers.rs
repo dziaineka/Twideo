@@ -20,7 +20,7 @@ lazy_static::lazy_static! {
     static ref TWITTER_SEARCH_URL: &'static str = "https://api.twitter.com/2/tweets/search/recent";
     static ref TWITTER_EXPANSIONS_PARAMS: &'static str = "expansions=attachments.media_keys,author_id&media.fields=url,variants,preview_image_url&user.fields=name";
     static ref RE : regex::Regex= Regex::new("https://t.co/\\w+\\b").unwrap();
-    static ref REDIS_URL: String = env::var("REDIS_URL").unwrap_or("".to_string());
+    static ref REDIS_URL: String = env::var("REDIS_URL").unwrap_or_else(|_| "".to_string());
 }
 
 pub fn get_twitter_id(link: &str) -> TwitterID {
@@ -193,11 +193,11 @@ pub async fn get_twitter_data(
             name
         ),
         twitter_media,
-        name: name,
+        name,
         id: twitter_id,
-        extra_urls: extra_urls,
+        extra_urls,
         next: 1,
-        conversation_id: conversation_id,
+        conversation_id,
         thread_count,
         user_id,
     }))
@@ -251,7 +251,7 @@ async fn fetch_threads(conversation_id: u64, user_id: u64) -> usize {
     log::info!("Status {}", result.status().as_u16());
 
     let response_json = result.json::<ThreadSearchResult>().await.unwrap();
-    let mut search_data = response_json.data.unwrap_or(vec![]);
+    let mut search_data = response_json.data.unwrap_or_default();
 
     let mut thread_ids: Vec<u64> = vec![];
     let mut last_reference: u64 = 0;
@@ -304,7 +304,7 @@ async fn fetch_threads(conversation_id: u64, user_id: u64) -> usize {
 
     let _: () = pipe.query(&mut con).unwrap();
 
-    return threads_count;
+    threads_count
 }
 
 pub async fn get_thread(conversation_id: u64, thread_number: u8, user_id: u64) -> Option<u64> {
@@ -319,7 +319,7 @@ pub async fn get_thread(conversation_id: u64, thread_number: u8, user_id: u64) -
 
     let mut tid: String = con
         .hget(redis_key.clone(), thread_number)
-        .unwrap_or("".to_string());
+        .unwrap_or_else(|_| "".to_string());
 
     if !tid.is_empty() {
         return Some(tid.parse::<u64>().unwrap());
@@ -332,5 +332,5 @@ pub async fn get_thread(conversation_id: u64, thread_number: u8, user_id: u64) -
         return Some(tid.parse::<u64>().unwrap());
     }
 
-    return None;
+    None
 }
