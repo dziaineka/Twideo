@@ -14,3 +14,6 @@ up:
 check:
 	cargo fmt --check
 	cargo clippy
+
+format:
+	cargo fmt
