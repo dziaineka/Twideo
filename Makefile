@@ -10,3 +10,7 @@ push:
 
 up:
 	@docker compose up --build
+
+check:
+	cargo fmt --check
+	cargo clippy
