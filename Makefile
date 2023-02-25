@@ -13,6 +13,7 @@ up:
 
 check:
 	cargo fmt --check
+	cargo build
 	cargo clippy
 
 format:
