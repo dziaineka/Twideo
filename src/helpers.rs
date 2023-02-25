@@ -7,6 +7,8 @@ use regex::Regex;
 use std::env;
 use twitter_video_dl::serde_schemes::*;
 
+const DISABLED: &str = "disabled";
+
 lazy_static::lazy_static! {
     static ref TWITTER_STATUS_URL: &'static str = "https://api.twitter.com/1.1/statuses/show.json?extended_entities=true&tweet_mode=extended&id=";
     static ref TWITTER_V2_URL: &'static str = "https://api.twitter.com/2/tweets?expansions=author_id&ids=";
@@ -21,6 +23,7 @@ lazy_static::lazy_static! {
     static ref TWITTER_EXPANSIONS_PARAMS: &'static str = "expansions=attachments.media_keys,author_id&media.fields=url,variants,preview_image_url&user.fields=name";
     static ref RE : regex::Regex= Regex::new("https://t.co/\\w+\\b").unwrap();
     static ref REDIS_URL: String = env::var("REDIS_URL").unwrap_or_else(|_| "".to_string());
+    static ref THREADS_SUPPORT: String = env::var("THREADS_SUPPORT").unwrap_or_else(|_| DISABLED.to_string());
 }
 
 pub fn get_twitter_id(link: &str) -> TwitterID {
@@ -101,7 +104,11 @@ pub async fn get_twitter_data(
         .unwrap();
     let user_id = multimedia.data.author_id.unwrap().parse::<u64>().unwrap();
 
-    let thread_count = fetch_threads(conversation_id, user_id).await;
+    let thread_count = if *THREADS_SUPPORT == DISABLED {
+        0
+    } else {
+        fetch_threads(conversation_id, user_id).await
+    };
 
     if let Some(includes) = &multimedia.includes {
         name = includes.users[0].name.to_string();
