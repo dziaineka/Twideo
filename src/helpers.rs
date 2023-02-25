@@ -204,7 +204,7 @@ pub async fn get_twitter_data(
 }
 
 const CONVERSATION_KEY: &str = "conversation";
-const EXPIRE_KEY_TTL: u16 = 3600;
+const EXPIRE_KEY_TTL: u32 = 24 * 60 * 60;
 
 async fn fetch_threads(conversation_id: u64, user_id: u64) -> usize {
     // check cache if fetch threads before
