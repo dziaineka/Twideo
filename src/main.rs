@@ -243,7 +243,6 @@ async fn message_handler(message: Message, bot: Bot) -> Result<(), Box<dyn Error
         };
 
         text.split_ascii_whitespace()
-            .into_iter()
             .filter(|part| part.contains("twitter"))
             .map(|part| convert_to_telegram(part, message_response_cb))
             .collect()
