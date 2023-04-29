@@ -35,6 +35,9 @@ struct TelegramTextMessage {
 enum TelegramMessage {
     Media(MediaWithExtra),
     Text(TelegramTextMessage),
+    InlineResults(Vec<InlineQueryResult>),
+    Unauthorized(i32),
+    TooManyRequest(i32),
     None,
 }
 
@@ -103,26 +106,40 @@ async fn convert_to_telegram<F>(url: &str, callback: F) -> TelegramMessage
 where
     F: Fn(&TwitDetails) -> TelegramMessage,
 {
-    if let TwitterID::Id(id) = get_twitter_id(url) {
-        let data = get_twitter_data(id).await.unwrap_or(None);
-        if let Some(twitter_data) = data {
-            return callback(&twitter_data);
-        }
-    }
+        match twitt_id(url) {
+            TwitterID::id(id) => {
+                let data = get_twitter_data(id).await;
 
-    TelegramMessage::None
+                if data.is_ok() {
+                    if let Some(twitter_data) = data.unwrap() {
+                        return callback(&twitter_data);
+                    }
+    
+                    return Response::TooManyRequest(429);
+                }
+                return Response::Unauthorized(401);
+            },
+            _ => {}
+        }
+        return Response::None
 }
 
 async fn convert_to_telegram_by_id<F>(id: u64, next: u8, callback: F) -> TelegramMessage
 where
     F: Fn(&TwitDetails) -> TelegramMessage,
 {
-    let data = get_twitter_data(id).await.unwrap_or(None);
-    if let Some(mut twitter_data) = data {
-        twitter_data.next = next;
-        return callback(&twitter_data);
+    let data = get_twitter_data(id).await;
+
+    if data.is_ok() {
+        if let Some(mut twitter_data) = data.unwrap() {
+            twitter_data.next = next;
+            return callback(&twitter_data);
+        }
+
+        return Response::TooManyRequest(429)
     }
-    TelegramMessage::None
+
+    return Response::Unauthorized(401)
 }
 
 async fn send_telegram_message<Contact>(
@@ -228,6 +245,17 @@ where
                 }
             }
         }
+        Response::TooManyRequest(code) => {
+            bot.send_message(chat_id, "🧑‍💻👨‍💻⚠️ Server is busy! Please try a little later.")
+            .disable_web_page_preview(true)
+            .await?;
+        },
+        Response::Unauthorized(code) => {
+            bot.send_message(chat_id, "☠️ Bot is stopped to work due to Twitter's new API plan(<a href='https://twitter.com/TwitterDev/status/1641222786894135296'>click to see announcement</a>). But don't despair. 👀 I'm looking for a way to come back. Be patient 💪🏻")
+            .parse_mode(ParseMode::Html)
+            .disable_web_page_preview(true)
+            .await?;
+        },
         _ => (),
     }
 

@@ -1,9 +1,11 @@
 extern crate lazy_static;
 extern crate redis;
 
+use std::{env, error::Error, fmt};
+use regex::Regex;
+use rand::Rng;
 use rand::seq::SliceRandom;
 use redis::Commands;
-use regex::Regex;
 use std::env;
 use twitter_video_dl::serde_schemes::*;
 
@@ -41,6 +43,18 @@ pub fn get_twitter_id(link: &str) -> TwitterID {
         TwitterID::None
     }
 }
+
+#[derive(Debug)]
+struct MyError(String);
+
+impl fmt::Display for MyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "There is an error: {}", self.0)
+    }
+}
+
+impl Error for MyError {}
+
 
 #[derive(Debug)]
 pub struct TwitterMedia {
@@ -90,6 +104,14 @@ pub async fn get_twitter_data(
 
     log::info!("Status {}", multimedia_response.status().as_u16());
 
+    if multimedia_response.status().as_u16() == 401 {
+        return Err(Box::new(MyError("Unauthorized Error!".into())))
+    }
+
+    if multimedia_response.status().as_u16() == 429 {
+        return Ok(None)
+    }
+    
     let multimedia = multimedia_response.json::<MultimediaBody>().await?;
 
     let mut twitter_media: Vec<TwitterMedia> = Vec::new();
