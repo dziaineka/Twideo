@@ -251,10 +251,10 @@ where
             .await?;
         }
         TelegramMessage::Unauthorized(_code) => {
-            bot.send_message(chat_id, "☠️ Bot is stopped to work due to Twitter's new API plan(<a href='https://twitter.com/TwitterDev/status/1641222786894135296'>click to see announcement</a>). But don't despair. 👀 I'm looking for a way to come back. Be patient 💪🏻")
-            .parse_mode(ParseMode::Html)
-            .disable_web_page_preview(true)
-            .await?;
+            // bot.send_message(chat_id, "☠️ Bot is stopped to work due to Twitter's new API plan(<a href='https://twitter.com/TwitterDev/status/1641222786894135296'>click to see announcement</a>). But don't despair. 👀 I'm looking for a way to come back. Be patient 💪🏻")
+            // .parse_mode(ParseMode::Html)
+            // .disable_web_page_preview(true)
+            // .await?;
         }
         _ => (),
     }
