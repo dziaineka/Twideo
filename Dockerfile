@@ -1,4 +1,4 @@
-FROM rust:1.68.2-buster as builder
+FROM rust:1.70.0-buster as builder
 WORKDIR /usr/src/twitter_video_dl
 COPY . .
 RUN cargo install --path .
